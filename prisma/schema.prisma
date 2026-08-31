@@ -1,0 +1,398 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  DISABLED
+}
+
+enum SiteStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum TemplateStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum TemplateVersionStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum QuestionType {
+  YES_NO
+  PASS_FAIL
+  CHECKBOX
+  SINGLE_SELECT
+  MULTI_SELECT
+  TEXT
+  NUMBER
+  DECIMAL
+  DATE
+  TIME
+  RATING
+  MEASUREMENT
+  PHOTO
+  SIGNATURE
+}
+
+enum InspectionStatus {
+  ASSIGNED
+  IN_PROGRESS
+  PENDING_SYNC
+  SUBMITTED
+  IN_REVIEW
+  REWORK_REQUIRED
+  APPROVED
+  CANCELLED
+}
+
+enum EvidenceType {
+  PHOTO
+  VIDEO
+  DOCUMENT
+  SIGNATURE
+  NOTE
+}
+
+enum EvidenceStatus {
+  PENDING_UPLOAD
+  UPLOADING
+  UPLOADED
+  FAILED
+  DELETED
+}
+
+model Organization {
+  id        String             @id @default(uuid())
+  name      String
+  slug      String             @unique
+  status    OrganizationStatus @default(ACTIVE)
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+
+  users       User[]
+  roles       Role[]
+  sites       Site[]
+  templates   InspectionTemplate[]
+  inspections Inspection[]
+  evidence    Evidence[]
+
+  @@map("organizations")
+}
+
+model User {
+  id             String     @id @default(uuid())
+  organizationId String     @map("organization_id")
+  firstName      String     @map("first_name")
+  lastName       String     @map("last_name")
+  email          String     @unique
+  passwordHash   String     @map("password_hash")
+  status         UserStatus @default(INVITED)
+  lastLoginAt    DateTime?  @map("last_login_at")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  organization         Organization          @relation(fields: [organizationId], references: [id])
+  refreshTokens        RefreshToken[]
+  userRoles            UserRole[]
+  siteMemberships      SiteMember[]
+  createdTemplates     InspectionTemplate[]
+  createdVersions      TemplateVersion[]
+  assignedInspections  Inspection[]          @relation("AssignedInspections")
+  reviewedInspections  Inspection[]          @relation("ReviewedInspections")
+  uploadedEvidence     Evidence[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@map("users")
+}
+
+model Role {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  name           String
+  description    String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization    Organization     @relation(fields: [organizationId], references: [id])
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("roles")
+}
+
+model Permission {
+  id          String  @id @default(uuid())
+  key         String  @unique
+  description String?
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String @map("role_id")
+  permissionId String @map("permission_id")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  userId String @map("user_id")
+  roleId String @map("role_id")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model Site {
+  id             String     @id @default(uuid())
+  organizationId String     @map("organization_id")
+  name           String
+  code           String
+  description    String?
+  addressLine1   String?    @map("address_line_1")
+  addressLine2   String?    @map("address_line_2")
+  city           String?
+  state          String?
+  country        String?
+  postalCode     String?    @map("postal_code")
+  latitude       Decimal?   @db.Decimal(9, 6)
+  longitude      Decimal?   @db.Decimal(9, 6)
+  status         SiteStatus @default(ACTIVE)
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  members      SiteMember[]
+  inspections  Inspection[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
+  @@map("sites")
+}
+
+model SiteMember {
+  siteId String @map("site_id")
+  userId String @map("user_id")
+  role   String
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([siteId, userId])
+  @@map("site_members")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
+
+model InspectionTemplate {
+  id               String         @id @default(uuid())
+  organizationId   String         @map("organization_id")
+  name             String
+  description      String?
+  status           TemplateStatus @default(DRAFT)
+  currentVersionId String?        @map("current_version_id")
+  createdBy        String         @map("created_by")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  organization   Organization      @relation(fields: [organizationId], references: [id])
+  creator        User              @relation(fields: [createdBy], references: [id])
+  versions       TemplateVersion[] @relation("TemplateVersions")
+  currentVersion TemplateVersion?  @relation("CurrentVersion", fields: [currentVersionId], references: [id])
+
+  @@index([organizationId])
+  @@map("inspection_templates")
+}
+
+model TemplateVersion {
+  id            String                 @id @default(uuid())
+  templateId    String                 @map("template_id")
+  versionNumber Int                    @map("version_number")
+  status        TemplateVersionStatus  @default(DRAFT)
+  publishedAt   DateTime?              @map("published_at")
+  createdBy     String                 @map("created_by")
+  createdAt     DateTime               @default(now()) @map("created_at")
+
+  template           InspectionTemplate  @relation("TemplateVersions", fields: [templateId], references: [id], onDelete: Cascade)
+  creator             User                @relation(fields: [createdBy], references: [id])
+  sections            TemplateSection[]
+  currentForTemplate  InspectionTemplate[] @relation("CurrentVersion")
+  inspections         Inspection[]
+
+  @@unique([templateId, versionNumber])
+  @@index([templateId])
+  @@map("template_versions")
+}
+
+model TemplateSection {
+  id                 String   @id @default(uuid())
+  templateVersionId  String   @map("template_version_id")
+  title              String
+  description        String?
+  displayOrder       Int      @map("display_order")
+
+  templateVersion TemplateVersion    @relation(fields: [templateVersionId], references: [id], onDelete: Cascade)
+  questions       TemplateQuestion[]
+
+  @@index([templateVersionId])
+  @@map("template_sections")
+}
+
+model TemplateQuestion {
+  id               String       @id @default(uuid())
+  sectionId        String       @map("section_id")
+  questionKey      String       @map("question_key")
+  label            String
+  description      String?
+  questionType     QuestionType @map("question_type")
+  isRequired       Boolean      @default(false) @map("is_required")
+  displayOrder     Int          @map("display_order")
+  validationRules  Json?        @map("validation_rules")
+  options          Json?
+  conditionalRules Json?        @map("conditional_rules")
+  evidenceRequired Boolean      @default(false) @map("evidence_required")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  section   TemplateSection       @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  responses InspectionResponse[]
+  evidence  Evidence[]
+
+  @@index([sectionId])
+  @@map("template_questions")
+}
+
+model Inspection {
+  id                String            @id @default(uuid())
+  organizationId    String            @map("organization_id")
+  siteId            String            @map("site_id")
+  templateVersionId String            @map("template_version_id")
+  assignedTo        String            @map("assigned_to")
+  reviewerId        String?           @map("reviewer_id")
+
+  status InspectionStatus @default(ASSIGNED)
+
+  scheduledAt DateTime? @map("scheduled_at")
+  startedAt   DateTime? @map("started_at")
+  submittedAt DateTime? @map("submitted_at")
+  completedAt DateTime? @map("completed_at")
+
+  clientVersion Int @default(0) @map("client_version")
+  serverVersion Int @default(0) @map("server_version")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization    Organization          @relation(fields: [organizationId], references: [id])
+  site            Site                  @relation(fields: [siteId], references: [id])
+  templateVersion TemplateVersion       @relation(fields: [templateVersionId], references: [id])
+  assignee        User                  @relation("AssignedInspections", fields: [assignedTo], references: [id])
+  reviewer        User?                 @relation("ReviewedInspections", fields: [reviewerId], references: [id])
+  responses       InspectionResponse[]
+  evidence        Evidence[]
+
+  @@index([organizationId])
+  @@index([siteId])
+  @@index([assignedTo])
+  @@index([status])
+  @@map("inspections")
+}
+
+model InspectionResponse {
+  id           String @id @default(uuid())
+  inspectionId String @map("inspection_id")
+  questionId   String @map("question_id")
+
+  value Json
+
+  clientVersion Int @default(0) @map("client_version")
+  serverVersion Int @default(0) @map("server_version")
+
+  answeredAt DateTime @default(now()) @map("answered_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  inspection Inspection       @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  question   TemplateQuestion @relation(fields: [questionId], references: [id])
+
+  @@unique([inspectionId, questionId])
+  @@index([inspectionId])
+  @@map("inspection_responses")
+}
+
+model Evidence {
+  id             String @id @default(uuid())
+  organizationId String @map("organization_id")
+  inspectionId   String @map("inspection_id")
+  questionId     String? @map("question_id")
+
+  type EvidenceType
+
+  storageKey String @map("storage_key")
+  fileName   String @map("file_name")
+  mimeType   String @map("mime_type")
+  fileSize   BigInt @map("file_size")
+
+  latitude   Decimal?  @db.Decimal(9, 6)
+  longitude  Decimal?  @db.Decimal(9, 6)
+  capturedAt DateTime? @map("captured_at")
+
+  uploadedBy String         @map("uploaded_by")
+  status     EvidenceStatus @default(PENDING_UPLOAD)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization      @relation(fields: [organizationId], references: [id])
+  inspection   Inspection        @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  question     TemplateQuestion? @relation(fields: [questionId], references: [id])
+  uploader     User              @relation(fields: [uploadedBy], references: [id])
+
+  @@index([organizationId])
+  @@index([inspectionId])
+  @@index([questionId])
+  @@map("evidence")
+}

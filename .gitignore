@@ -1,0 +1,33 @@
+node_modules/
+dist/
+build/
+.turbo/
+coverage/
+
+# Environment / secrets — never commit real credentials
+.env
+.env.*
+!.env.example
+setup.md
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+credentials.json
+service-account*.json
+*.credentials
+.aws/
+.gcp/
+gcp-*.json
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.log
+
+# PWA / build artifacts (Phase 6+)
+dev-dist/
+*.tsbuildinfo
