@@ -85,7 +85,12 @@ export function toInspectionDetailDto(inspection: InspectionDetail) {
         })),
       })),
     },
-    responses: inspection.responses.map((r) => ({ questionId: r.questionId, value: r.value, answeredAt: r.answeredAt })),
+    responses: inspection.responses.map((r) => ({
+      questionId: r.questionId,
+      value: r.value,
+      answeredAt: r.answeredAt,
+      serverVersion: r.serverVersion,
+    })),
     progress: {
       totalQuestions: allQuestions.length,
       answeredQuestions: responseByQuestionId.size,

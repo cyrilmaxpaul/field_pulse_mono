@@ -67,6 +67,35 @@ export function createInspectionRepository(prisma: PrismaClient) {
         create: { inspectionId, questionId, value: value as Prisma.InputJsonValue },
       }),
 
+    upsertResponseVersioned: (inspectionId: string, questionId: string, value: unknown, clientVersion: number) =>
+      prisma.$transaction(async (tx) => {
+        const existing = await tx.inspectionResponse.findUnique({
+          where: { inspectionId_questionId: { inspectionId, questionId } },
+        });
+        const expectedVersion = existing?.serverVersion ?? 0;
+        if (expectedVersion !== clientVersion) {
+          return { applied: false as const, current: existing };
+        }
+
+        const response = await tx.inspectionResponse.upsert({
+          where: { inspectionId_questionId: { inspectionId, questionId } },
+          update: {
+            value: value as Prisma.InputJsonValue,
+            answeredAt: new Date(),
+            clientVersion,
+            serverVersion: expectedVersion + 1,
+          },
+          create: {
+            inspectionId,
+            questionId,
+            value: value as Prisma.InputJsonValue,
+            clientVersion,
+            serverVersion: expectedVersion + 1,
+          },
+        });
+        return { applied: true as const, response };
+      }),
+
     async listEvidencedQuestionIds(inspectionId: string) {
       const rows = await prisma.evidence.findMany({
         where: { inspectionId, status: { not: "DELETED" }, questionId: { not: null } },

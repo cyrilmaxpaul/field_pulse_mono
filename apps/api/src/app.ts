@@ -17,6 +17,7 @@ import siteRoutes from "./modules/sites/site.routes.js";
 import templateRoutes from "./modules/templates/template.routes.js";
 import inspectionRoutes from "./modules/inspections/inspection.routes.js";
 import evidenceRoutes from "./modules/evidence/evidence.routes.js";
+import syncRoutes from "./modules/sync/sync.routes.js";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -47,6 +48,7 @@ export async function buildApp() {
   await app.register(templateRoutes, { prefix: "/api/v1" });
   await app.register(inspectionRoutes, { prefix: "/api/v1" });
   await app.register(evidenceRoutes, { prefix: "/api/v1" });
+  await app.register(syncRoutes, { prefix: "/api/v1" });
 
   return app;
 }

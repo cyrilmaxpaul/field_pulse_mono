@@ -87,12 +87,14 @@ model Organization {
   createdAt DateTime           @default(now()) @map("created_at")
   updatedAt DateTime           @updatedAt @map("updated_at")
 
-  users       User[]
-  roles       Role[]
-  sites       Site[]
-  templates   InspectionTemplate[]
-  inspections Inspection[]
-  evidence    Evidence[]
+  users          User[]
+  roles          Role[]
+  sites          Site[]
+  templates      InspectionTemplate[]
+  inspections    Inspection[]
+  evidence       Evidence[]
+  devices        Device[]
+  syncOperations SyncOperation[]
 
   @@map("organizations")
 }
@@ -118,6 +120,8 @@ model User {
   assignedInspections  Inspection[]          @relation("AssignedInspections")
   reviewedInspections  Inspection[]          @relation("ReviewedInspections")
   uploadedEvidence     Evidence[]
+  devices              Device[]
+  syncOperations       SyncOperation[]
 
   @@index([organizationId])
   @@index([status])
@@ -395,4 +399,61 @@ model Evidence {
   @@index([inspectionId])
   @@index([questionId])
   @@map("evidence")
+}
+
+enum SyncOperationType {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+enum SyncOperationStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  CONFLICT
+  FAILED
+}
+
+model Device {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  userId         String    @map("user_id")
+  deviceId       String    @map("device_id")
+  deviceName     String?   @map("device_name")
+  platform       String?
+  appVersion     String?   @map("app_version")
+  lastSyncAt     DateTime? @map("last_sync_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([userId, deviceId])
+  @@map("devices")
+}
+
+model SyncOperation {
+  id             String              @id @default(uuid())
+  organizationId String              @map("organization_id")
+  userId         String              @map("user_id")
+  deviceId       String              @map("device_id")
+  entityType     String              @map("entity_type")
+  entityId       String              @map("entity_id")
+  operation      SyncOperationType
+  clientVersion  Int                 @map("client_version")
+  payload        Json
+  status         SyncOperationStatus @default(PENDING)
+  errorCode      String?             @map("error_code")
+  errorMessage   String?             @map("error_message")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  processedAt    DateTime?           @map("processed_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@index([organizationId, userId, status])
+  @@index([entityType, entityId])
+  @@map("sync_operations")
 }

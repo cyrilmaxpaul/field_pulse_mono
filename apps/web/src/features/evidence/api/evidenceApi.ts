@@ -5,7 +5,7 @@ export function listInspectionEvidence(inspectionId: string) {
   return apiRequest<Evidence[]>(`/inspections/${inspectionId}/evidence`);
 }
 
-function presignEvidence(input: {
+export function presignEvidence(input: {
   inspectionId: string;
   questionId?: string;
   fileName: string;
@@ -32,6 +32,20 @@ export function deleteEvidence(id: string) {
   return apiRequest<null>(`/evidence/${id}`, { method: "DELETE" });
 }
 
+// Direct upload to object storage — do not route this through apiRequest,
+// which adds our API's Authorization header and credentials that Supabase's
+// S3 endpoint neither needs nor expects.
+export async function uploadToPresignedUrl(uploadUrl: string, file: File) {
+  const uploadResponse = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": file.type },
+    body: file,
+  });
+  if (!uploadResponse.ok) {
+    throw new Error("Failed to upload file to storage.");
+  }
+}
+
 export async function uploadEvidenceFile(input: {
   inspectionId: string;
   questionId?: string;
@@ -45,17 +59,7 @@ export async function uploadEvidenceFile(input: {
     fileSize: input.file.size,
   });
 
-  // Direct upload to object storage — do not route this through apiRequest,
-  // which adds our API's Authorization header and credentials that Supabase's
-  // S3 endpoint neither needs nor expects.
-  const uploadResponse = await fetch(presigned.uploadUrl, {
-    method: "PUT",
-    headers: { "Content-Type": input.file.type },
-    body: input.file,
-  });
-  if (!uploadResponse.ok) {
-    throw new Error("Failed to upload file to storage.");
-  }
+  await uploadToPresignedUrl(presigned.uploadUrl, input.file);
 
   return finalizeEvidence({
     id: presigned.evidenceId,

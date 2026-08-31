@@ -46,6 +46,7 @@ export interface InspectionResponse {
   questionId: string;
   value: unknown;
   answeredAt: string;
+  serverVersion: number;
 }
 
 export interface InspectionDetail {

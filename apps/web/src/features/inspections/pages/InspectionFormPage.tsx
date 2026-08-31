@@ -138,11 +138,13 @@ export function InspectionFormPage() {
         if (isOnline) {
           await saveResponseMutation.mutateAsync({ questionId: question.id, value: answers[question.id] });
         } else {
+          const baseVersion = inspection.responses.find((r) => r.questionId === question.id)?.serverVersion ?? 0;
           await db.pendingResponses.put({
             key: `${inspection.id}:${question.id}`,
             inspectionId: inspection.id,
             questionId: question.id,
             value: answers[question.id],
+            baseVersion,
             updatedAt: Date.now(),
           });
         }
